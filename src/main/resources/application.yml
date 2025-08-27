@@ -1,0 +1,91 @@
+server:
+  port: 9090
+spring:
+  main:
+    web-application-type: reactive
+  application:
+    name: springai-mcp-gateway
+  ai:
+    mcp:
+      server:
+        enabled: true
+        type: ASYNC            # McpAsyncServer (no bloqueante en la capa pública)
+        transport: WEBFLUX     # publica SSE + message vía auto-config WebFlux
+        #        base-url: /api/v1      # opcional; prefija ambos endpoints
+        #        sse-endpoint: /sse
+        #        sse-message-endpoint: /message
+        request-timeout: 30s   # opcional; timeout de request
+        stdio: false
+      client:
+        enabled: true
+        name: mcp-client
+        version: 1.0.0
+        request-timeout: 30s
+        type: SYNC  # or ASYNC for reactive applications
+        #        sse:
+        #          connections:
+        #            server1:
+        #              url: http://localhost:8080
+        #            server2:
+        #              url: http://otherserver:8081
+        stdio:
+          root-change-notification: false
+          connections:
+            memory:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - --volume
+                - /home/omar/.mcp-memory-data:/data
+                - mcp/memory
+                - /data
+              env:
+                MEMORY_STORAGE_PATH: /data
+                MEMORY_MAX_ENTRIES: "10000"
+            duckduckgo:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - mcp/duckduckgo
+            paper-search:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - mcp/paper-search
+              env:
+                PAPER_SEARCH_TIMEOUT_SECONDS: "30"
+            sequential-thinking:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - mcp/sequentialthinking
+            mcp-fetch:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - mcp/fetch
+              env:
+                FETCH_MAX_REQUESTS_PER_MINUTE: "30"
+                FETCH_TIMEOUT_SECONDS: "30"
+
+mcp:
+  gateway:
+    prefixMode: STATIC     # NONE | STATIC | ALIAS
+    delimiter: "_"
+    staticPrefix: "gw"
+
+logging:
+  level:
+    es.omarall: DEBUG
+    io.modelcontextprotocol: DEBUG
+    org.springframework.ai: DEBUG

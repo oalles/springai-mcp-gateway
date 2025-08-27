@@ -100,6 +100,62 @@ For production environments, the Docker MCP Gateway provides a governed, observa
 See the [Docker MCP Gateway documentation](docker-mcp-gateway.md) for more details.
 
 
+## Running and Testing Your MCP Gateway
+
+Before connecting GitHub Copilot, you can run and test your MCP Gateway locally to ensure everything is working as expected.
+
+To start the project, simply use Maven:
+
+```sh
+mvn spring-boot:run
+```
+
+This will launch the MCP Gateway server, typically on port 9090 (unless configured otherwise).
+
+You can then manually interact with your MCP Gateway using the official MCP CLI utility. For example, you can run:
+
+```sh
+npx mcp-remote http://localhost:9090/sse
+```
+
+This command connects to your local MCP Gateway via the Server-Sent Events (SSE) endpoint. It allows you to send tool requests and receive responses directly from the command line, simulating how an AI client (like Copilot) would interact with your gateway.
+
+![run.gif](images/run.gif)
+
+## Connecting GitHub Copilot to Your MCP Gateway
+
+Now for the fun part: using GitHub Copilot with the new gateway. Recent versions of GitHub Copilot (especially in IDEs like VS Code and JetBrains IDEs) have
+experimental support for connecting to **custom MCP servers**. This allows Copilot to call your tools (MCP tools) as it’s generating code or answers –
+effectively letting Copilot act as a more powerful AI pair programmer with access to your specific resources.
+
+To connect Copilot to an MCP server, GitHub provides a small CLI utility called mcp-remote (distributed via npm). The Copilot IDE0 plugins
+look for an MCP configuration file to know how to launch this utility. For example, in JetBrains IDEs (IntelliJ, etc.), you can create a file
+at `~/.config/github-copilot/intellij/mcp.json`. Here’s how we set ours up to point to the locally running Spring MCP Gateway:
+
+```json
+{
+  "servers": {
+    "springai-mcp-gw": {
+      "command": "/npx",
+      "args": [ "mcp-remote", "http://localhost:9090/sse" ]
+    }
+  }
+}
+```
+
+Let’s break that down: we define a server profile named "springai-mcp-gw" (you can call it anything). The Copilot plugin will
+use the specified command to connect – in our case we use npx to run the mcp-remote package, pointing it to our gateway’s SSE URL (http://localhost:9090/sse).
+Once this is set up, we can instruct Copilot to connect to our server. Copilot (through `mcp-remote`) will then:
+
+* Establish a session with the MCP Gateway.
+* Retrieve the list of available tools (the ones we saw in the catalog, now prefixed and aggregated).
+* Start listening for and forwarding tool calls. Essentially, mcp-remote acts as a bridge between the Copilot AI running in the cloud and your local MCP server.
+
+With the connection live, Copilot can invoke your tools as needed.
+
+![copilot.gif](images/copilot.gif)
+
+
 ## References
 
 - [Spring AI MCP Overview](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-overview.html)
@@ -116,6 +172,3 @@ For more information, see:
 * [Spring Boot Maven Plugin Guide](https://docs.spring.io/spring-boot/3.5.4/maven-plugin)
 * [Create an OCI image](https://docs.spring.io/spring-boot/3.5.4/maven-plugin/build-image.html)
 
-### Maven Parent overrides
-
-Due to Maven's design, some elements such as `<license>` and `<developers>` are inherited from the parent POM. The project POM contains empty overrides to avoid this unwanted inheritance. If you change the parent and want inheritance, remove these overrides.

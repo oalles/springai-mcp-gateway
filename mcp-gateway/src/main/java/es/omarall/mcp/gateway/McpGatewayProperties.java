@@ -1,4 +1,4 @@
-package es.omarall.gateway.mcp;
+package es.omarall.mcp.gateway;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

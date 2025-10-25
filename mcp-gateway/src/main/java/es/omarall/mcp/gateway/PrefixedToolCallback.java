@@ -1,4 +1,4 @@
-package es.omarall.gateway.mcp;
+package es.omarall.mcp.gateway;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

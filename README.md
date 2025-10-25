@@ -1,174 +1,193 @@
-# Spring AI MCP Gateway
+# Spring AI MCP Gateway (Streamable HTTP + OAuth 2.1)
 
-## General Description
+This repository hosts a multi‑module Spring Boot project that implements an MCP Gateway using Spring AI and secures it
+with OAuth 2.1. In this branch (OAUTH2.1_STREAMABLE) the server transport has been migrated from SSE to Streamable HTTP
+and the project has been split into two modules:
 
-This project is a gateway/extension for Spring AI MCP (Model Context Protocol), built with Spring Boot 3 and Maven. Its purpose is to act as a bridge between MCP clients and servers, allowing the management, discovery, and exposure of AI tools via HTTP endpoints, with support for prefixes and advanced configuration.
+- `auth-server/` – OAuth 2.1 Authorization Server (JWT issuer) on port 9090.
+- `mcp-gateway/` – Spring AI MCP server/client acting as a Resource Server on port 8080.
 
-## Main Components
+As a result, the MCP endpoint is now available at `http://localhost:8080/mcp` and requires a Bearer token issued by the
+Authorization Server at `http://localhost:9090`.
 
-- **Application.java**: Main class that starts the Spring Boot application, enabling custom property configuration.
-- **CatalogHttpController.java**: REST controller that exposes the `/mcp/gateway/catalog` endpoint to list all available tools in the gateway.
-- **GatewayProvidersConfig.java**: Bean configuration that defines the ToolCallbacks provider, integrating synchronous and asynchronous MCP clients, and applying prefix logic to tool names.
-- **McpGatewayProperties.java**: Configurable properties of the gateway, such as prefix mode, delimiter, static prefix, and timeout.
-- **PrefixedToolCallback.java / PrefixedToolDefinition.java**: Wrappers to apply prefixes to tool names, avoiding collisions and allowing better organization and discovery.
+## Branch History
 
-## Integration with Spring AI MCP
+This repository uses branches to illustrate the evolution of repo:
 
-The gateway uses the Spring AI MCP client and server starters, allowing:
-- Centralized discovery and exposure of MCP tools.
-- Configuration of prefix behavior to avoid name collisions.
-- Support for both synchronous and asynchronous clients.
-- Exposure of HTTP endpoints for querying available tools.
+- NO_AUTH_SSE — anchor for “SSE without security”
 
-## Configuration
+- OAUTH2.1_STREAMABLE — Streamable HTTP + OAuth 2.1 (current)
+  - Transport switched to Streamable HTTP at `http://localhost:8080/mcp`.
+  - Secured as an OAuth 2.1 Resource Server (issuer `http://localhost:9090`).
+  - Maven multi-module: `auth-server/` (9090) + `mcp-gateway/` (8080).
+  - Removed catalog HTTP endpoint; discovery is via MCP.
+  - Quick check: `npx mcp-remote http://localhost:8080/mcp --header "Authorization: Bearer $TOKEN"`.
 
-The main configuration is located in `src/main/resources/application.yml`, where the parameters for the MCP server and client are defined, including:
-- Transport type (SYNC/ASYNC, WEBFLUX, etc.)
-- Request timeouts
-- Prefixes and delimiters for tool names
-- Connections to external tools (memory, duckduckgo, etc.)
+- CLOUDFLARE_TUNNELS — (Future) planned next step
+  - Goal: securely expose `mcp-gateway` (8080) over a Cloudflare Tunnel for remote testing.
+  - Topics: tunnel → 8080 mapping, token-protected access, origin restrictions, and `mcp-remote` examples with the public URL.
 
-Example configuration:
+## What Changed From `NO_AUTH_SSE` to `OAUTH2.1_STREAMABLE`
+
+- Switched transport: SSE (`/sse` on 9090) → Streamable HTTP (`/mcp` on 8080).
+- Added OAuth 2.1 protection to the MCP server (Resource Server JWT validation).
+- Introduced a Maven multi‑module layout with dedicated `auth-server` and `mcp-gateway` modules.
+- Removed the old catalog controller; the gateway focuses on MCP endpoints only.
+
+## Project Structure
+
+- Parent aggregator POM (`pom.xml`, packaging `pom`).
+- Modules:
+    - `auth-server/` – Authorization server configuration and keys. Config:
+      `auth-server/src/main/resources/application.yml` (port 9090).
+    - `mcp-gateway/` – MCP Gateway server/client and security. Config:
+      `mcp-gateway/src/main/resources/application.yml` (port 8080).
+
+Key classes in `mcp-gateway/`:
+
+- `es.omarall.mcp.gateway.McpGatewayApplication`
+- `es.omarall.mcp.gateway.SecurityConfiguration`
+- `es.omarall.mcp.gateway.GatewayProvidersConfig`
+- `es.omarall.mcp.gateway.McpGatewayProperties`
+- `es.omarall.mcp.gateway.PrefixedToolCallback` / `PrefixedToolDefinition`
+
+## Build
+
+- Build all modules: `mvn -q clean package`
+
+## Run (Local)
+
+1) Start the Authorization Server (port 9090):
+
+- `mvn -q -pl auth-server spring-boot:run`
+
+2) Start the MCP Gateway (port 8080):
+
+- `mvn -q -pl mcp-gateway spring-boot:run`
+
+## Get a Token (Client Credentials)
+
+- Well‑known metadata: `http://localhost:9090/.well-known/openid-configuration`
+- Obtain token:
+
+```bash
+curl -u springai-gateway-client:my-secret \
+  -d "grant_type=client_credentials" \
+  http://localhost:9090/oauth2/token
+
+# Optional: capture with jq
+TOKEN=$(curl -s -u springai-gateway-client:my-secret \
+  -d "grant_type=client_credentials" \
+  http://localhost:9090/oauth2/token | jq -r .access_token)
+```
+
+## Quick Check With mcp-remote
+
+Use the Streamable HTTP endpoint and pass the Bearer token:
+
+```bash
+npx mcp-remote http://localhost:8080/mcp \
+  --header "Authorization: Bearer $TOKEN"
+```
+
+If you don’t use `jq`, copy the `access_token` from the JSON response and substitute it in the command above.
+
+## JetBrains GitHub Copilot (mcp.json)
+
+Place this file at `~/.config/github-copilot/intellij/mcp.json` and inject the token via env var for safety:
+
+```json
+{
+  "servers": {
+    "springai-mcp-gw": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://127.0.0.1:8080/mcp",
+        "--header",
+        "Authorization: Bearer ${AUTH_TOKEN}"
+      ],
+      "env": {
+        "AUTH_TOKEN": "<paste access_token here>"
+      }
+    }
+  }
+}
+```
+
+## Configuration Snapshots
+
+`mcp-gateway/src/main/resources/application.yml` (excerpt):
 
 ```yaml
 server:
-  port: 9090
+  port: 8080
 spring:
   ai:
     mcp:
       server:
         enabled: true
-        type: ASYNC
-        transport: WEBFLUX
-        request-timeout: 30s
+        protocol: streamable
+        name: ${spring.application.name}
       client:
         enabled: true
         name: mcp-client
         version: 1.0.0
-        request-timeout: 30s
-        type: SYNC
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090
+mcp:
+  gateway:
+    prefixMode: STATIC
+    delimiter: "_"
+    staticPrefix: "gw"
 ```
 
-## Endpoints
+`auth-server/src/main/resources/application.yml` (excerpt):
 
-- `GET /mcp/gateway/catalog`: Returns the catalog of tools available in the gateway in JSON format.
-
-## Connecting the MCP Gateway to GitHub Copilot
-
-GitHub Copilot can connect directly to your custom MCP server, enabling you to extend Copilot with domain-specific tools and resources. To achieve this, we use the `mcp-remote` script, which acts as a lightweight CLI client for MCP servers. It establishes a session with your MCP server, lists the available tools and resources, and lets Copilot interact with them as if they were built-in capabilities.
-
-The configuration is managed through the `mcp.json` file, which for IntelliJ is located at:
-
-```plain text
-~/.config/github-copilot/intellij/mcp.json
+```yaml
+server:
+  port: 9090
+spring:
+  security:
+    oauth2:
+      authorizationserver:
+        client:
+          springai-gateway-client:
+            registration:
+              client-id: springai-gateway-client
+              client-secret: "{noop}my-secret"
+              client-authentication-methods: [ client_secret_basic ]
+              authorization-grant-types: [ client_credentials ]
+            token:
+              access-token-time-to-live: 1h
 ```
 
-Here is the example configuration for connecting to the MCP Gateway running at `http://localhost:9090/sse`:
+## Notes
 
-```json
-{
-  "servers": {
-    "springai-mcp-gw": {
-      "command": "/npx",
-      "args": [
-        "mcp-remote",
-        "http://localhost:9090/sse"
-      ]
-    }
-  }
-}
-```
-
-With this setup:
-
-* `mcp-remote` establishes a connection between Copilot and your MCP Gateway.
-
-* Copilot can **discover and invoke tools** exposed by your server.
-
-* It provides a clean way to **test and integrate MCP endpoints** without writing a custom client.
-
-In short, mcp-remote bridges GitHub Copilot with your MCP Gateway, so you can seamlessly enhance your development 
-workflow by exposing custom functionality directly to Copilot inside IntelliJ.
-
-## Takeaway
-
-There is a robust, Docker-backed MCP Gateway designed for security, manageability, and scale.
-
-This Spring AI MCP gateway is just a didactic example.
-
-For production environments, the Docker MCP Gateway provides a governed, observable, and scalable control plane for your MCP ecosystem.
-See the [Docker MCP Gateway documentation](docker-mcp-gateway.md) for more details.
-
-
-## Running and Testing Your MCP Gateway
-
-Before connecting GitHub Copilot, you can run and test your MCP Gateway locally to ensure everything is working as expected.
-
-To start the project, simply use Maven:
-
-```sh
-mvn spring-boot:run
-```
-
-This will launch the MCP Gateway server, typically on port 9090 (unless configured otherwise).
-
-You can then manually interact with your MCP Gateway using the official MCP CLI utility. For example, you can run:
-
-```sh
-npx mcp-remote http://localhost:9090/sse
-```
-
-This command connects to your local MCP Gateway via the Server-Sent Events (SSE) endpoint. It allows you to send tool requests and receive responses directly from the command line, simulating how an AI client (like Copilot) would interact with your gateway.
-
-![run.gif](images/run.gif)
-
-## Connecting GitHub Copilot to Your MCP Gateway
-
-Now for the fun part: using GitHub Copilot with the new gateway. Recent versions of GitHub Copilot (especially in IDEs like VS Code and JetBrains IDEs) have
-experimental support for connecting to **custom MCP servers**. This allows Copilot to call your tools (MCP tools) as it’s generating code or answers –
-effectively letting Copilot act as a more powerful AI pair programmer with access to your specific resources.
-
-To connect Copilot to an MCP server, GitHub provides a small CLI utility called mcp-remote (distributed via npm). The Copilot IDE0 plugins
-look for an MCP configuration file to know how to launch this utility. For example, in JetBrains IDEs (IntelliJ, etc.), you can create a file
-at `~/.config/github-copilot/intellij/mcp.json`. Here’s how we set ours up to point to the locally running Spring MCP Gateway:
-
-```json
-{
-  "servers": {
-    "springai-mcp-gw": {
-      "command": "/npx",
-      "args": [ "mcp-remote", "http://localhost:9090/sse" ]
-    }
-  }
-}
-```
-
-Let’s break that down: we define a server profile named "springai-mcp-gw" (you can call it anything). The Copilot plugin will
-use the specified command to connect – in our case we use npx to run the mcp-remote package, pointing it to our gateway’s SSE URL (http://localhost:9090/sse).
-Once this is set up, we can instruct Copilot to connect to our server. Copilot (through `mcp-remote`) will then:
-
-* Establish a session with the MCP Gateway.
-* Retrieve the list of available tools (the ones we saw in the catalog, now prefixed and aggregated).
-* Start listening for and forwarding tool calls. Essentially, mcp-remote acts as a bridge between the Copilot AI running in the cloud and your local MCP server.
-
-With the connection live, Copilot can invoke your tools as needed.
-
-![copilot.gif](images/copilot.gif)
-
+- The gateway no longer exposes a catalog REST endpoint; discovery happens through MCP.
+- Do not commit real secrets. Override via env vars (e.g., `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`,
+  `SERVER_PORT`, `SPRING_AI_*`).
+- Default local ports: 9090 (auth-server), 8080 (mcp-gateway).
 
 ## References
 
-- [Spring AI MCP Overview](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-overview.html)
-- [Spring AI MCP Client Boot Starter](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-client-boot-starter-docs.html)
-- [Spring AI MCP Server Boot Starter](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html)
+- Spring AI MCP intro and updates: see Spring blog posts (2025‑09‑16, 2025‑09‑19) and security (2025‑09‑30).
+- Daniel Vega’s example on building an MCP server with Spring AI.
+- Spring AI Reference: MCP Overview, Client Boot Starter, Server Boot Starter.
 
-## Getting Started
+## Screenshots
 
-### Reference Documentation
+![run.gif](images/run.gif)
 
-For more information, see:
+![copilot.gif](images/copilot.gif)
 
-* [Official Apache Maven Documentation](https://maven.apache.org/guides/index.html)
-* [Spring Boot Maven Plugin Guide](https://docs.spring.io/spring-boot/3.5.4/maven-plugin)
-* [Create an OCI image](https://docs.spring.io/spring-boot/3.5.4/maven-plugin/build-image.html)
+## Links
 
+* https://spring.io/blog/2025/09/16/spring-ai-mcp-intro-blog
+* https://spring.io/blog/2025/09/19/spring-ai-1-1-0-M2-mcp-focused
+* https://www.danvega.dev/blog/cyc-mcp-server-spring-ai
+* https://github.com/spring-ai-community/mcp-security/
+* https://spring.io/blog/2025/09/30/spring-ai-mcp-server-security

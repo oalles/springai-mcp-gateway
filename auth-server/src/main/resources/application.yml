@@ -1,0 +1,22 @@
+server:
+  port: 9090
+spring:
+  application:
+    name: authserver
+  security:
+    oauth2:
+      authorizationserver:
+        client:
+          springai-gateway-client:
+            registration:
+              client-id: springai-gateway-client
+              client-secret: "{noop}my-secret"    # {noop} para indicar texto plano
+              client-authentication-methods:
+                - client_secret_basic
+              authorization-grant-types:
+                - client_credentials
+            token:
+              access-token-time-to-live: 1h       # Duración del token de acceso
+logging:
+  level:
+    org.springframework.security: TRACE

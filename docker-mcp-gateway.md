@@ -69,34 +69,47 @@ The gateway consolidates connections and policies, while individual MCP servers 
 
 ## Using with GitHub Copilot (IntelliJ)
 
-If you’re currently connecting Copilot to our Spring AI gateway using `mcp-remote` via:
+If you’re currently connecting Copilot to our Spring AI gateway using `mcp-remote` via Streamable HTTP:
 
 ```json
 {
   "servers": {
     "springai-mcp-gw": {
       "command": "/npx",
-      "args": ["mcp-remote", "http://localhost:9090/sse"]
+      "args": [
+        "mcp-remote",
+        "http://localhost:8080/mcp",
+        "--header",
+        "Authorization: Bearer ${AUTH_TOKEN}"
+      ],
+      "env": {
+        "AUTH_TOKEN": "<paste access_token>"
+      }
     }
   }
 }
 ```
 
-you can later swap the endpoint to the Docker MCP Gateway URL, keeping the same pattern:
+you can later swap the endpoint to the Docker MCP Gateway URL, keeping the same pattern (add an Authorization header
+only if your gateway requires it):
 
 ```json
 {
   "servers": {
     "docker-mcp-gateway": {
       "command": "/npx",
-      "args": ["mcp-remote", "http://localhost:PORT/sse"]
+      "args": [
+        "mcp-remote",
+        "http://localhost:PORT/mcp"
+      ]
     }
   }
 }
 ```
 
-> The client-side experience remains the same; the difference is that the gateway now manages multiple servers, policies, and logs centrally.
- 
+> The client-side experience remains the same; the difference is that the gateway now manages multiple servers,
+> policies, and logs centrally.
+
 ## Security & Compliance Posture
 
 * Container isolation for each MCP server reduces blast radius.

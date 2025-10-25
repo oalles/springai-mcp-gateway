@@ -1,4 +1,4 @@
-package es.omarall.gateway.mcp;
+package es.omarall.mcp.gateway;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import lombok.Getter;

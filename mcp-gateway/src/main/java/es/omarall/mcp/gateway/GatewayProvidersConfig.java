@@ -1,4 +1,4 @@
-package es.omarall.gateway.mcp;
+package es.omarall.mcp.gateway;
 
 import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpSyncClient;

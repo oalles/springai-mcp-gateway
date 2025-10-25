@@ -1,0 +1,95 @@
+server:
+  port: 8080
+  servlet:
+    session:
+      cookie:
+        # Override the default cookie name (JSESSIONID).
+        # This allows running multiple Spring apps on localhost, and they'll each have their own cookie.
+        # Otherwise, since the cookies do not take the port into account, they are confused.
+        name: MCP_AUTHORIZATION_SERVER_SESSIONID
+spring:
+  application:
+    name: springai-mcp-gateway
+  ai:
+    mcp:
+      server:
+        enabled: true
+        protocol: streamable
+        name: ${spring.application.name}
+      client:
+        enabled: true
+        name: mcp-client
+        version: 1.0.0
+        request-timeout: 30s
+        sse:
+          connections:
+            jetbrains:
+              url: http://localhost:64342
+              sse-endpoint: /sse
+        stdio:
+          root-change-notification: false
+          connections:
+            memory:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - --volume
+                - /home/omar/.mcp-memory-data:/data
+                - mcp/memory
+                - /data
+              env:
+                MEMORY_STORAGE_PATH: /data
+                MEMORY_MAX_ENTRIES: "10000"
+            #            duckduckgo:
+            #              command: docker
+            #              args:
+            #                - run
+            #                - -i
+            #                - --rm
+            #                - mcp/duckduckgo
+            #            paper-search:
+            #              command: docker
+            #              args:
+            #                - run
+            #                - -i
+            #                - --rm
+            #                - mcp/paper-search
+            #              env:
+            #                PAPER_SEARCH_TIMEOUT_SECONDS: "30"
+            sequential-thinking:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - mcp/sequentialthinking
+  #            mcp-fetch:
+  #              command: docker
+  #              args:
+  #                - run
+  #                - -i
+  #                - --rm
+  #                - mcp/fetch
+  #              env:
+  #                FETCH_MAX_REQUESTS_PER_MINUTE: "30"
+  #                FETCH_TIMEOUT_SECONDS: "30"
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090
+
+mcp:
+  gateway:
+    prefixMode: STATIC     # NONE | STATIC | ALIAS
+    delimiter: "_"
+    staticPrefix: "gw"
+
+logging:
+  level:
+    es.omarall: DEBUG
+    io.modelcontextprotocol: DEBUG
+    org.springframework.ai: TRACE
+    org.springframework.security: TRACE

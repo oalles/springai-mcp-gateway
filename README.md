@@ -1,38 +1,41 @@
 # Spring AI MCP Gateway (Streamable HTTP + OAuth 2.1)
 
 This repository hosts a multi‑module Spring Boot project that implements an MCP Gateway using Spring AI and secures it
-with OAuth 2.1. In this branch (OAUTH2.1_STREAMABLE) the server transport has been migrated from SSE to Streamable HTTP
-and the project has been split into two modules:
+with OAuth 2.1. 
+
+In this branch (OAUTH2.1_CHATGPT_TUNNELS) we keep the transport as **Streamable HTTP** and introduce:
+
+- OAuth 2.1 Authorization Code + PKCE with a **public client** (no client secret) for ChatGPT Connectors.
+- Exposure of the local environment via **Cloudflare Tunnels** (single hostname, path‑based routing).
+
+Modules remain the same:
 
 - `auth-server/` – OAuth 2.1 Authorization Server (JWT issuer) on port 9090.
 - `mcp-gateway/` – Spring AI MCP server/client acting as a Resource Server on port 8080.
 
-As a result, the MCP endpoint is now available at `http://localhost:8080/mcp` and requires a Bearer token issued by the
-Authorization Server at `http://localhost:9090`.
+The public MCP endpoint is exposed at `https://<your-domain>/mcp` (through the tunnel) and protected with Bearer tokens
+obtained by ChatGPT through the OAuth flow against the Authorization Server at `https://<your-domain>`.
 
 ## Branch History
 
-This repository uses branches to illustrate the evolution of repo:
+This repository uses branches to illustrate the evolution of the repo:
 
-- NO_AUTH_SSE — anchor for “SSE without security”
+- [NO_AUTH_SSE](https://github.com/oalles/springai-mcp-gateway/tree/NO_AUTH_SSE) — anchor for “SSE without security”. Spring AI configuration project.
 
-- OAUTH2.1_STREAMABLE — Streamable HTTP + OAuth 2.1 (current)
-  - Transport switched to Streamable HTTP at `http://localhost:8080/mcp`.
-  - Secured as an OAuth 2.1 Resource Server (issuer `http://localhost:9090`).
-  - Maven multi-module: `auth-server/` (9090) + `mcp-gateway/` (8080).
-  - Removed catalog HTTP endpoint; discovery is via MCP.
-  - Quick check: `npx mcp-remote http://localhost:8080/mcp --header "Authorization: Bearer $TOKEN"`.
+- [OAUTH2.1_STREAMABLE](https://github.com/oalles/springai-mcp-gateway/tree/OAUTH2.1_STREAMABLE) — Streamable HTTP + OAuth 2.1 (Resource Server with local issuer) with Client Credentials.
 
-- CLOUDFLARE_TUNNELS — (Future) planned next step
-  - Goal: securely expose `mcp-gateway` (8080) over a Cloudflare Tunnel for remote testing.
-  - Topics: tunnel → 8080 mapping, token-protected access, origin restrictions, and `mcp-remote` examples with the public URL.
+- [OAUTH2.1_CHATGPT_TUNNELS](https://github.com/oalles/springai-mcp-gateway/tree/OAUTH2.1_CHATGPT_TUNNELS) — ChatGPT Connectors + Cloudflare Tunnels + OAuth 2.1 (this branch)
+    - Keep Streamable HTTP at `/mcp` (Gateway on 8080). Several tools, exposed through the same endpoint.
+    - Switch to Authorization Code + PKCE with a **public client** registered in the Authorization Server.
+    - Use a public hostname via **Cloudflare Tunnel** and validate JWTs with `issuer=https://<your-domain>`.
+    - ChatGPT handles the OAuth flow and automatically injects `Authorization: Bearer <token>`.
 
-## What Changed From `NO_AUTH_SSE` to `OAUTH2.1_STREAMABLE`
+## What Changed From `OAUTH2.1_STREAMABLE` to `OAUTH2.1_CHATGPT_TUNNELS`
 
-- Switched transport: SSE (`/sse` on 9090) → Streamable HTTP (`/mcp` on 8080).
-- Added OAuth 2.1 protection to the MCP server (Resource Server JWT validation).
-- Introduced a Maven multi‑module layout with dedicated `auth-server` and `mcp-gateway` modules.
-- Removed the old catalog controller; the gateway focuses on MCP endpoints only.
+- Authentication flow: from Client Credentials → Authorization Code + PKCE with a public client (no secret).
+- Issuer and URLs: from `http://localhost:9090` → public `https://<your-domain>` through Cloudflare Tunnel.
+- ChatGPT integration: the connector completes the OAuth flow and manages token refresh automatically.
+- Resource Server keeps Streamable HTTP at `/mcp` and validates JWTs from the public issuer.
 
 ## Project Structure
 
@@ -65,55 +68,20 @@ Key classes in `mcp-gateway/`:
 
 - `mvn -q -pl mcp-gateway spring-boot:run`
 
-## Get a Token (Client Credentials)
+## Cloudflare Tunnel Setup
 
-- Well‑known metadata: `http://localhost:9090/.well-known/openid-configuration`
-- Obtain token:
+ For Cloudflare Tunnel setup and path‑based routing, see [CLOUDFLARE.md](./CLOUDFLARE.md).
 
-```bash
-curl -u springai-gateway-client:my-secret \
-  -d "grant_type=client_credentials" \
-  http://localhost:9090/oauth2/token
+## Register the Gateway in ChatGPT (OAuth 2.1 + PKCE)
 
-# Optional: capture with jq
-TOKEN=$(curl -s -u springai-gateway-client:my-secret \
-  -d "grant_type=client_credentials" \
-  http://localhost:9090/oauth2/token | jq -r .access_token)
-```
+![ChatGpt.gif](images/ChatGPT-config.png)
 
-## Quick Check With mcp-remote
-
-Use the Streamable HTTP endpoint and pass the Bearer token:
-
-```bash
-npx mcp-remote http://localhost:8080/mcp \
-  --header "Authorization: Bearer $TOKEN"
-```
-
-If you don’t use `jq`, copy the `access_token` from the JSON response and substitute it in the command above.
+See [CHATGPT](./CHATGPT.md) for detailed steps.
 
 ## JetBrains GitHub Copilot (mcp.json)
 
-Place this file at `~/.config/github-copilot/intellij/mcp.json` and inject the token via env var for safety:
-
-```json
-{
-  "servers": {
-    "springai-mcp-gw": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://127.0.0.1:8080/mcp",
-        "--header",
-        "Authorization: Bearer ${AUTH_TOKEN}"
-      ],
-      "env": {
-        "AUTH_TOKEN": "<paste access_token here>"
-      }
-    }
-  }
-}
-```
+If you also use Copilot MCP clients locally, keep using your preferred config. For this branch, tokens are managed by
+ChatGPT during the OAuth flow; `mcp-remote` examples with Client Credentials do not apply.
 
 ## Configuration Snapshots
 
@@ -137,7 +105,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:9090
+          issuer-uri: https://<your-domain>
 mcp:
   gateway:
     prefixMode: STATIC
@@ -154,29 +122,26 @@ spring:
   security:
     oauth2:
       authorizationserver:
+        issuer: https://<your-domain>
         client:
-          springai-gateway-client:
-            registration:
-              client-id: springai-gateway-client
-              client-secret: "{noop}my-secret"
-              client-authentication-methods: [ client_secret_basic ]
-              authorization-grant-types: [ client_credentials ]
+          default-client:
             token:
               access-token-time-to-live: 1h
+            registration:
+              client-id: springai-gateway-client
+              client-authentication-methods: [ none ]
+              authorization-grant-types: [ authorization_code, refresh_token ]
+              scopes: [ mcp:read, mcp:write ]
+              redirect-uris: [ https://chatgpt.com/connector_platform_oauth_redirect ]
+            require-proof-key: true
 ```
 
 ## Notes
 
-- The gateway no longer exposes a catalog REST endpoint; discovery happens through MCP.
-- Do not commit real secrets. Override via env vars (e.g., `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`,
+- Use environment variables to override configuration safely (e.g., `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`,
   `SERVER_PORT`, `SPRING_AI_*`).
 - Default local ports: 9090 (auth-server), 8080 (mcp-gateway).
 
-## References
-
-- Spring AI MCP intro and updates: see Spring blog posts (2025‑09‑16, 2025‑09‑19) and security (2025‑09‑30).
-- Daniel Vega’s example on building an MCP server with Spring AI.
-- Spring AI Reference: MCP Overview, Client Boot Starter, Server Boot Starter.
 
 ## Screenshots
 
@@ -184,7 +149,7 @@ spring:
 
 ![copilot.gif](images/copilot.gif)
 
-## Links
+## References
 
 * https://spring.io/blog/2025/09/16/spring-ai-mcp-intro-blog
 * https://spring.io/blog/2025/09/19/spring-ai-1-1-0-M2-mcp-focused

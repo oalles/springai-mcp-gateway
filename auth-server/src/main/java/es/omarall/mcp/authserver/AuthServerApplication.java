@@ -6,14 +6,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.util.List;
 
 @SpringBootApplication
@@ -21,32 +24,6 @@ public class AuthServerApplication {
     static void main(String[] args) {
         SpringApplication.run(AuthServerApplication.class, args);
     }
-
-
-//    @Bean
-//    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-//        return http
-//                // all requests must be authenticated
-//                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-//                // enable authorization server customizations
-//                .with(McpAuthorizationServerConfigurer.mcpAuthorizationServer(), Customizer.withDefaults())
-//                .csrf(csrf -> csrf.disable())
-//                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-//                .build();
-//    }
-
-    private static KeyPair generateRsaKey() {
-        KeyPair keyPair;
-        try {
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
-            keyPair = keyPairGenerator.generateKeyPair();
-        } catch (Exception ex) {
-            throw new IllegalStateException(ex);
-        }
-        return keyPair;
-    }
-
 
     @Bean
     @Order(1)
@@ -56,7 +33,7 @@ public class AuthServerApplication {
                 OAuth2AuthorizationServerConfigurer.authorizationServer();
 
         http
-                .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
+//                .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
                 .with(authorizationServerConfigurer, (authorizationServer) ->
                         authorizationServer
                                 .oidc(Customizer.withDefaults())    // Enable OpenID Connect 1.0
@@ -67,9 +44,24 @@ public class AuthServerApplication {
                 )
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .formLogin(Customizer.withDefaults());
         ;
 
         return http.build();
+    }
+
+    @Bean
+    UserDetailsService users(PasswordEncoder pe) {
+        var user = User.withUsername("omar")
+                .password(pe.encode("secret"))  // solo para demo
+                .roles("USER")
+                .build();
+        return new InMemoryUserDetailsManager(user);
+    }
+
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
     private CorsConfigurationSource corsConfigurationSource() {

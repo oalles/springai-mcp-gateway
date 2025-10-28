@@ -75,7 +75,7 @@ If you’re currently connecting Copilot to our Spring AI gateway using `mcp-rem
 {
   "servers": {
     "springai-mcp-gw": {
-      "command": "/npx",
+      "command": "npx",
       "args": [
         "mcp-remote",
         "http://localhost:8080/mcp",
@@ -97,7 +97,7 @@ only if your gateway requires it):
 {
   "servers": {
     "docker-mcp-gateway": {
-      "command": "/npx",
+      "command": "npx",
       "args": [
         "mcp-remote",
         "http://localhost:PORT/mcp"

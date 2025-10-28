@@ -1,12 +1,5 @@
 server:
   port: 8080
-  servlet:
-    session:
-      cookie:
-        # Override the default cookie name (JSESSIONID).
-        # This allows running multiple Spring apps on localhost, and they'll each have their own cookie.
-        # Otherwise, since the cookies do not take the port into account, they are confused.
-        name: MCP_AUTHORIZATION_SERVER_SESSIONID
 spring:
   application:
     name: springai-mcp-gateway
@@ -79,7 +72,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:9090
+          issuer-uri: https://dev.omarall.es # "https://dev.omarall.es" # http://localhost:9090
 
 mcp:
   gateway:

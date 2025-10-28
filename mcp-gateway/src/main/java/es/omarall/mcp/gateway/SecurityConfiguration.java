@@ -35,7 +35,7 @@ public class SecurityConfiguration {
                             // REQUIRED: the authserver's issuer URI
                             mcpAuthorization.authorizationServer(this.authServerUrl);
                             // OPTIONAL: enforce the `aud` claim in the JWT token.
-                            mcpAuthorization.validateAudienceClaim(false);
+//                            mcpAuthorization.validateAudienceClaim(true);
                         }
                 )
                 .csrf(csrf -> csrf.disable())

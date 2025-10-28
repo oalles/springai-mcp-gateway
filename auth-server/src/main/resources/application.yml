@@ -1,22 +1,38 @@
 server:
   port: 9090
+  servlet:
+    session:
+      cookie:
+        # Override the default cookie name (JSESSIONID).
+        # This allows running multiple Spring apps on localhost, and they'll each have their own cookie.
+        # Otherwise, since the cookies do not take the port into account, they are confused.
+        name: MCP_AUTHORIZATION_SERVER_SESSIONID
+
 spring:
   application:
     name: authserver
   security:
     oauth2:
       authorizationserver:
+        issuer: "https://dev.omarall.es" # "https://dev.omarall.es"  http://localhost:9090   # Must match your public host (HTTPS)
         client:
-          springai-gateway-client:
-            registration:
-              client-id: springai-gateway-client
-              client-secret: "{noop}my-secret"    # {noop} para indicar texto plano
-              client-authentication-methods:
-                - client_secret_basic
-              authorization-grant-types:
-                - client_credentials
+          default-client:
             token:
-              access-token-time-to-live: 1h       # Duración del token de acceso
+              access-token-time-to-live: 1h
+            registration:
+              client-id: "springai-gateway-client"
+              client-authentication-methods:
+                - "none"
+              scopes:
+                - "mcp:read"
+                - "mcp:write"
+              authorization-grant-types:
+                - "authorization_code"
+                - "refresh_token"
+              redirect-uris:
+                - "https://chatgpt.com/connector_platform_oauth_redirect"
+            require-proof-key: true
+
 logging:
   level:
     org.springframework.security: TRACE

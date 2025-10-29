@@ -11,9 +11,16 @@ This branch uses Authorization Code + PKCE with a public client (no secret) to i
 
 ## Steps in ChatGPT (Developer Mode)
 1. Enable **Developer Mode** in ChatGPT.
-2. Go to **Settings → Connectors → Create**.
 
- ![ChatGpt.gif](images/ChatGPT-config.png)
+Go to **Settings → Connectors → Advanced Settings**.
+
+![Developer Mdope](images/developer-mode.png)
+
+2. Create a new Connector.
+
+Go to **Settings → Connectors → Create**.
+
+ ![ChatGpt](images/ChatGPT-config.png)
 
 > ChatGPT manages token acquisition and renewal automatically. You ll be required to authenticate during the first connection.
 

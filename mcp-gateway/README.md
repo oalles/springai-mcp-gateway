@@ -1,15 +1,16 @@
 # MCP Gateway (Streamable HTTP + OAuth 2.1)
 
-MCP server based on Spring AI that acts as a Resource Server protected by OAuth 2.1. It exposes a Streamable HTTP
-endpoint that MCP clients (e.g. `mcp-remote`, Copilot) can use for discovery and tool invocation.
+MCP server based on Spring AI that acts as an OAuth 2.1 Resource Server. It exposes a Streamable HTTP endpoint that
+MCP clients use for discovery and tool invocation. In this branch the primary client is ChatGPT Connectors, which
+obtain tokens via Authorization Code + PKCE (public client, no secret). The gateway only validates Bearer tokens.
 
 - Port: `8080`
-- MCP endpoint: `http://localhost:8080/mcp`
-- Requires: `Authorization: Bearer <access_token>` issued by `http://localhost:9090` (module `auth-server`).
+- MCP endpoint: `http://localhost:8080/mcp` (locally) / `https://<your-domain>/mcp` (via tunnel)
+- Requires: `Authorization: Bearer <access_token>` issued by your Authorization Server (module `auth-server`).
 
 ## Run
 
-1) Start the Authorization Server first:
+1) Start the Authorization Server:
 
 - `mvn -q -pl auth-server spring-boot:run`
 
@@ -17,9 +18,9 @@ endpoint that MCP clients (e.g. `mcp-remote`, Copilot) can use for discovery and
 
 - `mvn -q -pl mcp-gateway spring-boot:run`
 
-Requirements: Java 25, Maven. For CLI testing: `npm`/`npx` and optionally `jq`.
+Requirements: Java 25, Maven.
 
-## Main configuration
+## Configuration (gateway)
 
 File `mcp-gateway/src/main/resources/application.yml` (excerpt):
 
@@ -41,7 +42,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:9090
+          # Must match the public issuer of your Authorization Server
+          issuer-uri: https://<your-domain>
 mcp:
   gateway:
     prefixMode: STATIC
@@ -51,60 +53,33 @@ mcp:
 
 Notes:
 
-- The gateway adds tools from MCP client connections (for example, official images `mcp/*` via stdio/docker) and exposes
+- The gateway aggregates tools from MCP client connections (e.g., official `mcp/*` images via stdio/docker) and exposes
   them with the `gw_` prefix to avoid collisions.
-- There is no catalog REST endpoint; discovery is native to the MCP protocol.
+- Discovery is native to the MCP protocol; there is no separate REST catalog.
 
-## Obtain a token and test with mcp-remote
+## Use with ChatGPT (Authorization Code + PKCE)
 
-1) Get a token from the `auth-server` (client credentials):
+This branch integrates with ChatGPT Connectors. ChatGPT performs the OAuth 2.1 Authorization Code + PKCE flow against
+your Authorization Server and injects `Authorization: Bearer <token>` on calls to `/mcp`.
 
-```bash
-TOKEN=$(curl -s -u springai-gateway-client:my-secret \
-  -d "grant_type=client_credentials" \
-  http://localhost:9090/oauth2/token | jq -r .access_token)
-```
+- Ensure your Authorization Server `issuer` equals the public domain served by your tunnel (for example, `https://dev.example.com`).
+- Configure Cloudflare Tunnel (single hostname, path-based routing) so that:
+  - `https://<your-domain>/mcp` → MCP Gateway on `localhost:8080`
+  - `https://<your-domain>/` → Authorization Server on `localhost:9090`
+- Register the gateway in ChatGPT Developer Mode. See `CHATGPT.md` for step-by-step screenshots.
 
-2) Connect the MCP client:
-
-```bash
-npx mcp-remote http://localhost:8080/mcp \
-  --header "Authorization: Bearer $TOKEN"
-```
-
-## JetBrains Copilot configuration (mcp.json)
-
-Example file `~/.config/github-copilot/intellij/mcp.json`:
-
-```json
-{
-  "servers": {
-    "springai-mcp-gw": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://127.0.0.1:8080/mcp",
-        "--header",
-        "Authorization: Bearer ${AUTH_TOKEN}"
-      ],
-      "env": {
-        "AUTH_TOKEN": "<paste_your_access_token_here>"
-      }
-    }
-  }
-}
-```
+> Previous Client Credentials examples (curl + `mcp-remote`) from earlier branches do not apply here.
 
 ## Useful environment variables
 
 - `SERVER_PORT` to change the port (default `8080`).
-- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` to point to another issuer.
+- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` to point the gateway to another issuer.
 - `SPRING_AI_*` to override MCP client/server connections.
 
 ## Troubleshooting
 
-- 401/invalid_token: verify the token is not expired and that `issuer-uri` is `http://localhost:9090`.
-- 403: check the `Authorization` header and the `Bearer <token>` format.
+- 401/invalid_token: verify the token is not expired and the `issuer`/`issuer-uri` is the public domain.
+- redirect_uri_mismatch: ensure `https://chatgpt.com/connector_platform_oauth_redirect` is present in the Authorization Server client.
+- 403: check the `Authorization` header uses the `Bearer <token>` format.
 - Ports in use: adjust `SERVER_PORT` or free ports 8080/9090.
 - Useful logs: enable `org.springframework.security=TRACE` and `org.springframework.ai=TRACE`.
-

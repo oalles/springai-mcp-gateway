@@ -77,6 +77,20 @@ Traffic will be routed in my case, from  `https://dev.omarall.es`  to our local 
 
 See [CHATGPT](./CHATGPT.md) for detailed steps.
 
+## ⚠️ Security Notes 
+
+This repository is a learning and integration reference, just that.
+Its goal is to demonstrate how to connect and configure Spring AI + MCP + OAuth 2.1.
+
+Important security notes:
+
+* **Do not use demo credentials in production**. The default in-memory user (omar/secret) is for local testing only.
+
+* CORS and CSRF are relaxed for simplicity. Always restrict origins, allowed methods, and re-enable CSRF when building real deployments.
+
+* Scopes (mcp:read, mcp:write) are defined for illustration only — enforce real scope-based authorization when applicable.
+
+* Use HTTPS with verified domains and Zero Trust policies if publishing externally.
 
 ## Useful References
 
